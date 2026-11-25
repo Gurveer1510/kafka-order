@@ -29,7 +29,8 @@ func main() {
 		}
 
 		fetched.EachRecord(func(r *kgo.Record) {
-			payments.ProcessPayment(context.Background(), consumeClient, r)
+			err := payments.ProcessPayment(context.Background(), consumeClient, r)
+			log.Println(err)
 		})
 
 	}

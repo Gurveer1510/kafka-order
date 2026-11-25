@@ -3,17 +3,17 @@ package payments
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"math/rand/v2"
 	"orderflow/internal/events"
 	"orderflow/internal/kafka"
 	"time"
-	"uuid"
+
+	"github.com/google/uuid"
 
 	"github.com/twmb/franz-go/pkg/kgo"
 )
 
-func ProcessPayment(ctx context.Context, client *kgo.Client, rcrd *kgo.Record) {
+func ProcessPayment(ctx context.Context, client *kgo.Client, rcrd *kgo.Record) error {
 	var order events.Order
 
 	// key := rcrd.Key
@@ -21,9 +21,9 @@ func ProcessPayment(ctx context.Context, client *kgo.Client, rcrd *kgo.Record) {
 
 	err := json.Unmarshal(payload, &order)
 	if err != nil {
-		log.Println("Unmarshal error:", err)
+		return err
 	}
-	time.Sleep(5 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	payment := events.PaymentEvent{
 		PaymentID: uuid.New().String(),
@@ -32,29 +32,32 @@ func ProcessPayment(ctx context.Context, client *kgo.Client, rcrd *kgo.Record) {
 		CreatedAt: time.Now().UTC(),
 	}
 
+	topic := "payment.failed"
+	payment.Status = "failed"
+
 	if paymentStatus() {
+		topic = "payment.completed"
 		payment.Status = "completed"
-		key := payment.PaymentID
-		payload, err := json.Marshal(payment)
-		if err != nil {
-			log.Println(err)
-		}
-		err = kafka.PublishEvent(ctx, "payment.completed", client, []byte(key), payload)
-		if err != nil {
-			log.Println(err)
-		}
-	} else {
-		payment.Status = "failed"
-		key := payment.PaymentID
-		payload, err := json.Marshal(payment)
-		if err != nil {
-			log.Println(err)
-		}
-		err = kafka.PublishEvent(ctx, "payment.failed", client, []byte(key), payload)
-		if err != nil {
-			log.Println(err)
-		}
 	}
+
+	paymentPayload, err := json.Marshal(payment)
+	if err != nil {
+
+		return err
+	}
+
+	err = kafka.PublishEvent(
+		ctx,
+		topic,
+		client,
+		[]byte(payment.OrderID),
+		paymentPayload,
+	)
+	if err != nil {
+
+		return err
+	}
+	return nil
 }
 
 func paymentStatus() bool {
