@@ -30,7 +30,21 @@ func main() {
 
 		fetched.EachRecord(func(r *kgo.Record) {
 			err := payments.ProcessPayment(context.Background(), consumeClient, r)
-			log.Println(err)
+			if err != nil {
+				log.Printf(
+					"Payment processing failed | Partition: %d | Offset: %d | Error: %v",
+					r.Partition,
+					r.Offset,
+					err,
+				)
+				return
+			}
+
+			log.Printf(
+				"Payment processed | Partition: %d | Offset: %d",
+				r.Partition,
+				r.Offset,
+			)
 		})
 
 	}

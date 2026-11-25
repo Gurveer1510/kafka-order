@@ -3,6 +3,7 @@ package payments
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"math/rand/v2"
 	"orderflow/internal/events"
 	"orderflow/internal/kafka"
@@ -22,6 +23,9 @@ func ProcessPayment(ctx context.Context, client *kgo.Client, rcrd *kgo.Record) e
 	err := json.Unmarshal(payload, &order)
 	if err != nil {
 		return err
+	}
+	if order.OrderID == "" || order.Amount <= 0 {
+		return errors.New("invalid order event")
 	}
 	time.Sleep(500 * time.Millisecond)
 
@@ -45,9 +49,10 @@ func ProcessPayment(ctx context.Context, client *kgo.Client, rcrd *kgo.Record) e
 
 		return err
 	}
-
+	publishCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
 	err = kafka.PublishEvent(
-		ctx,
+		publishCtx,
 		topic,
 		client,
 		[]byte(payment.OrderID),
