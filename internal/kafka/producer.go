@@ -13,10 +13,5 @@ func PublishEvent(ctx context.Context, topic string, client *kgo.Client, key, va
 		Key:   key,
 		Value: value,
 	}
-
-	results := client.ProduceSync(ctx, rcrd)
-	if results.FirstErr() != nil {
-		return results.FirstErr()
-	}
-	return nil
+	return client.ProduceSync(ctx, rcrd).FirstErr()
 }

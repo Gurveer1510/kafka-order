@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"orderflow/internal/events"
@@ -31,14 +32,22 @@ func (h *OrderHandler) PublishOrderEventHandler(w http.ResponseWriter, r *http.R
 	}
 	id := uuid.New()
 	order.OrderID = id.String()
-	order.CreatedAt = time.Now()
-	
+	order.CreatedAt = time.Now().UTC()
+
+	if order.UserID == "" || order.ProductID == "" || order.Quantity <= 0 || order.Amount <= 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("invalid order data"))
+		return
+	}
+
 	payload, err := json.Marshal(order)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	err = kafka.PublishEvent(r.Context(), "order.created", h.kc, []byte(order.OrderID), payload)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	err = kafka.PublishEvent(ctx, "order.created", h.kc, []byte(order.OrderID), payload)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
